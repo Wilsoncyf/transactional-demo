@@ -1,135 +1,556 @@
-diff --git a/src/main/java/com/example/transactionaldemo/controller/DemoNewTxController.java b/src/main/java/com/example/transactionaldemo/controller/DemoNewTxController.java
-index e69de29..6016b28 100644
---- a/src/main/java/com/example/transactionaldemo/controller/DemoNewTxController.java
-+++ b/src/main/java/com/example/transactionaldemo/controller/DemoNewTxController.java
-@@ -0,0 +1,65 @@
+diff --git a/diff.txt b/diff.txt
+index 7b91baf..e69de29 100644
+--- a/diff.txt
++++ b/diff.txt
+@@ -1,348 +0,0 @@
+-diff --git a/src/main/java/com/example/transactionaldemo/controller/DemoNewTxController.java b/src/main/java/com/example/transactionaldemo/controller/DemoNewTxController.java
+-index e69de29..6016b28 100644
+---- a/src/main/java/com/example/transactionaldemo/controller/DemoNewTxController.java
+-+++ b/src/main/java/com/example/transactionaldemo/controller/DemoNewTxController.java
+-@@ -0,0 +1,65 @@
+-+package com.example.transactionaldemo.controller;
+-+
+-+import com.example.transactionaldemo.service.OuterServiceNewTx;
+-+import lombok.RequiredArgsConstructor;
+-+import org.springframework.web.bind.annotation.GetMapping;
+-+import org.springframework.web.bind.annotation.RequestMapping;
+-+import org.springframework.web.bind.annotation.RestController;
+-+
+-+@RestController
+-+@RequestMapping("/newtx") // 给这个 Controller 加个前缀区分
+-+@RequiredArgsConstructor
+-+public class DemoNewTxController {
+-+
+-+    private final OuterServiceNewTx outerServiceNewTx;
+-+
+-+    // --- 场景 3: 外部 REQUIRED, 内部 REQUIRES_NEW ---
+-+
+-+    @GetMapping("/scenario3/inner_success_outer_success")
+-+    public String runScenario3_InnerSuccess_OuterSuccess() {
+-+        try {
+-+            outerServiceNewTx.callInnerRequiresNew_OuterRequired(false, false);
+-+            return "场景3 (内成功, 外成功): T1 和 T2 都独立提交。预期数据库有 Outer(before), Inner, Outer(after) 日志。";
+-+        } catch (Exception e) {
+-+            return "场景3 (内成功, 外成功) 发生意外错误: " + e.getMessage();
+-+        }
+-+    }
+-+
+-+    @GetMapping("/scenario3/inner_fail_outer_success")
+-+    public String runScenario3_InnerFail_OuterSuccess() {
+-+         // 注意：在 OuterServiceNewTx 中，我们没有重新抛出内部异常
+-+         // 所以外部事务 T1 不会因此失败
+-+        try {
+-+             outerServiceNewTx.callInnerRequiresNew_OuterRequired(true, false);
+-+             return "场景3 (内失败, 外成功): T2 回滚, T1 提交。预期数据库只有 Outer(before) 和 Outer(after) 日志。";
+-+        } catch (Exception e) {
+-+             // 如果 OuterServiceNewTx 修改为重新抛出内部异常，则会进入这里
+-+             return "场景3 (内失败, 外成功) 发生意外错误（可能外部事务也回滚了）: " + e.getMessage();
+-+        }
+-+    }
+-+
+-+    @GetMapping("/scenario3/inner_success_outer_fail")
+-+    public String runScenario3_InnerSuccess_OuterFail() {
+-+        try {
+-+            outerServiceNewTx.callInnerRequiresNew_OuterRequired(false, true);
+-+             // 因为外部 T1 失败并抛异常，会进入下面的 catch
+-+            return "场景3 (内成功, 外失败) 执行完成，但似乎外部未回滚？";
+-+        } catch (RuntimeException e) {
+-+            return "场景3 (内成功, 外失败): T2 已提交, T1 回滚。预期数据库只有 Inner 日志。异常: " + e.getMessage();
+-+        }
+-+    }
+-+
+-+    // --- 场景 4: 外部无事务, 内部 REQUIRES_NEW ---
+-+
+-+    @GetMapping("/scenario4/inner_success")
+-+    public String runScenario4_InnerSuccess() {
+-+        outerServiceNewTx.callInnerRequiresNew_OuterNonTransactional(false);
+-+        return "场景4 (内成功): T2 提交。预期数据库只有 Inner 日志。";
+-+    }
+-+
+-+    @GetMapping("/scenario4/inner_fail")
+-+    public String runScenario4_InnerFail() {
+-+        outerServiceNewTx.callInnerRequiresNew_OuterNonTransactional(true);
+-+        return "场景4 (内失败): T2 回滚。预期数据库无新增日志。";
+-+    }
+-+}
+-\ No newline at end of file
+-diff --git a/src/main/java/com/example/transactionaldemo/service/DemoSupportsController.java b/src/main/java/com/example/transactionaldemo/service/DemoSupportsController.java
+-index e69de29..b9f551c 100644
+---- a/src/main/java/com/example/transactionaldemo/service/DemoSupportsController.java
+-+++ b/src/main/java/com/example/transactionaldemo/service/DemoSupportsController.java
+-@@ -0,0 +1,51 @@
+-+package com.example.transactionaldemo.service;
+-+
+-+import com.example.transactionaldemo.service.OuterServiceSupports;
+-+import lombok.RequiredArgsConstructor;
+-+import org.springframework.web.bind.annotation.GetMapping;
+-+import org.springframework.web.bind.annotation.RequestMapping;
+-+import org.springframework.web.bind.annotation.RestController;
+-+
+-+@RestController
+-+@RequestMapping("/supports") // 新的前缀 /supports
+-+@RequiredArgsConstructor
+-+public class DemoSupportsController {
+-+
+-+    private final OuterServiceSupports outerServiceSupports;
+-+
+-+    // --- 场景 5: 外部 REQUIRED, 内部 SUPPORTS ---
+-+
+-+    @GetMapping("/scenario5/inner_success")
+-+    public String runScenario5_InnerSuccess() {
+-+        try {
+-+            outerServiceSupports.callInnerSupports_OuterRequired(false);
+-+            return "场景5 (内成功): Inner 加入 Outer 的事务 T1，T1 提交。预期 DB 有 Outer(before), Inner, Outer(after)。";
+-+        } catch (Exception e) {
+-+            return "场景5 (内成功) 发生意外错误: " + e.getMessage();
+-+        }
+-+    }
+-+
+-+    @GetMapping("/scenario5/inner_fail")
+-+    public String runScenario5_InnerFail() {
+-+        try {
+-+            outerServiceSupports.callInnerSupports_OuterRequired(true);
+-+            return "场景5 (内失败) 执行完成，但似乎未回滚？"; // 正常不会到这里
+-+        } catch (RuntimeException e) {
+-+            return "场景5 (内失败): Inner 加入 T1 并失败，导致 T1 回滚。预期 DB 无新增记录。异常: " + e.getMessage();
+-+        }
+-+    }
+-+
+-+    // --- 场景 6: 外部无事务, 内部 SUPPORTS ---
+-+
+-+    @GetMapping("/scenario6/inner_success")
+-+    public String runScenario6_InnerSuccess() {
+-+        outerServiceSupports.callInnerSupports_OuterNonTransactional(false);
+-+        return "场景6 (内成功): Inner 以非事务方式执行，日志可能已自动提交。预期 DB 只有 Inner 日志。";
+-+    }
+-+
+-+    @GetMapping("/scenario6/inner_fail")
+-+    public String runScenario6_InnerFail() {
+-+        outerServiceSupports.callInnerSupports_OuterNonTransactional(true);
+-+        return "场景6 (内失败): Inner 以非事务方式执行，在失败前回滚了日志，但因无事务，该日志 *无法* 被回滚！预期 DB 仍然 *有* Inner 日志。";
+-+    }
+-+}
+-\ No newline at end of file
+-diff --git a/src/main/java/com/example/transactionaldemo/service/InnerServiceNewTx.java b/src/main/java/com/example/transactionaldemo/service/InnerServiceNewTx.java
+-index e69de29..179c0e3 100644
+---- a/src/main/java/com/example/transactionaldemo/service/InnerServiceNewTx.java
+-+++ b/src/main/java/com/example/transactionaldemo/service/InnerServiceNewTx.java
+-@@ -0,0 +1,32 @@
+-+package com.example.transactionaldemo.service;
+-+
+-+import com.example.transactionaldemo.entity.LogEntry;
+-+import com.example.transactionaldemo.repository.LogRepository;
+-+import lombok.RequiredArgsConstructor;
+-+import lombok.extern.slf4j.Slf4j;
+-+import org.springframework.stereotype.Service;
+-+import org.springframework.transaction.annotation.Propagation;
+-+import org.springframework.transaction.annotation.Transactional;
+-+
+-+@Service
+-+@Slf4j
+-+@RequiredArgsConstructor
+-+public class InnerServiceNewTx {
+-+
+-+    private final LogRepository logRepository;
+-+
+-+    // 明确指定 Propagation.REQUIRES_NEW
+-+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+-+    public void requiresNewAction(String message, boolean shouldFail) {
+-+        log.info("  [InnerServiceNewTx.requiresNewAction] 开始执行 ( REQUIRES_NEW )...");
+-+        logRepository.save(new LogEntry("InnerNewTx Log: " + message));
+-+        log.info("  [InnerServiceNewTx.requiresNewAction] 内部日志已保存 (新事务).");
+-+
+-+        if (shouldFail) {
+-+            log.warn("  [InnerServiceNewTx.requiresNewAction] 即将抛出运行时异常 (新事务)!");
+-+            throw new RuntimeException("InnerServiceNewTx 失败了!"); // 这将导致这个新事务 T2 回滚
+-+        }
+-+        log.info("  [InnerServiceNewTx.requiresNewAction] 执行完毕 (新事务).");
+-+        // 如果正常结束，这个新事务 T2 会在这里提交
+-+    }
+-+}
+-\ No newline at end of file
+-diff --git a/src/main/java/com/example/transactionaldemo/service/InnerServiceSupports.java b/src/main/java/com/example/transactionaldemo/service/InnerServiceSupports.java
+-index e69de29..33df09d 100644
+---- a/src/main/java/com/example/transactionaldemo/service/InnerServiceSupports.java
+-+++ b/src/main/java/com/example/transactionaldemo/service/InnerServiceSupports.java
+-@@ -0,0 +1,38 @@
+-+package com.example.transactionaldemo.service;
+-+
+-+import com.example.transactionaldemo.entity.LogEntry;
+-+import com.example.transactionaldemo.repository.LogRepository;
+-+import lombok.RequiredArgsConstructor;
+-+import lombok.extern.slf4j.Slf4j;
+-+import org.springframework.stereotype.Service;
+-+import org.springframework.transaction.annotation.Propagation;
+-+import org.springframework.transaction.annotation.Transactional;
+-+import org.springframework.transaction.support.TransactionSynchronizationManager; // 用于检查当前是否存在事务
+-+
+-+@Service
+-+@Slf4j
+-+@RequiredArgsConstructor
+-+public class InnerServiceSupports {
+-+
+-+    private final LogRepository logRepository;
+-+
+-+    // 明确指定 Propagation.SUPPORTS
+-+    @Transactional(propagation = Propagation.SUPPORTS)
+-+    public void supportsAction(String message, boolean shouldFail) {
+-+        // 检查当前是否存在活动的事务
+-+        boolean actualTransactionActive = TransactionSynchronizationManager.isActualTransactionActive();
+-+        log.info("  [InnerServiceSupports.supportsAction] 开始执行 ( SUPPORTS ). 当前是否存在事务? {}", actualTransactionActive);
+-+
+-+        logRepository.save(new LogEntry("InnerSupports Log: " + message));
+-+        log.info("  [InnerServiceSupports.supportsAction] 内部日志已保存.");
+-+
+-+        if (shouldFail) {
+-+            log.warn("  [InnerServiceSupports.supportsAction] 即将抛出运行时异常!");
+-+            throw new RuntimeException("InnerServiceSupports 失败了!");
+-+            // 如果当前有事务 (actualTransactionActive=true)，这个异常会导致该事务回滚
+-+            // 如果当前没有事务 (actualTransactionActive=false)，这个异常不会导致任何事务回滚（因为没有事务）
+-+            // 但已经保存的 "InnerSupports Log" 在非事务模式下可能已提交，无法回滚！
+-+        }
+-+        log.info("  [InnerServiceSupports.supportsAction] 执行完毕.");
+-+    }
+-+}
+-\ No newline at end of file
+-diff --git a/src/main/java/com/example/transactionaldemo/service/OuterServiceNewTx.java b/src/main/java/com/example/transactionaldemo/service/OuterServiceNewTx.java
+-index e69de29..2320798 100644
+---- a/src/main/java/com/example/transactionaldemo/service/OuterServiceNewTx.java
+-+++ b/src/main/java/com/example/transactionaldemo/service/OuterServiceNewTx.java
+-@@ -0,0 +1,68 @@
+-+package com.example.transactionaldemo.service;
+-+
+-+import com.example.transactionaldemo.entity.LogEntry;
+-+import com.example.transactionaldemo.repository.LogRepository;
+-+import lombok.RequiredArgsConstructor;
+-+import lombok.extern.slf4j.Slf4j;
+-+import org.springframework.stereotype.Service;
+-+import org.springframework.transaction.annotation.Propagation;
+-+import org.springframework.transaction.annotation.Transactional;
+-+
+-+@Service
+-+@Slf4j
+-+@RequiredArgsConstructor
+-+public class OuterServiceNewTx {
+-+
+-+    private final LogRepository logRepository;
+-+    private final InnerServiceNewTx innerServiceNewTx; // 注入新的 Inner Service
+-+
+-+    // === 场景 3: 外部 REQUIRED, 内部 REQUIRES_NEW ===
+-+    @Transactional // 默认 REQUIRED, 启动事务 T1
+-+    public void callInnerRequiresNew_OuterRequired(boolean innerShouldFail, boolean outerShouldFailAfter) {
+-+        log.info("[OuterServiceNewTx.Scenario3] 开始执行 (外部 REQUIRED)...");
+-+        logRepository.save(new LogEntry("OuterNewTx Log before calling inner"));
+-+        log.info("[OuterServiceNewTx.Scenario3] 外部日志 (before) 已保存 (事务 T1).");
+-+
+-+        try {
+-+            // 调用 InnerServiceNewTx 的 requiresNewAction 方法
+-+            // 当前事务 T1 会被挂起，innerServiceNewTx 会启动一个全新的独立事务 T2
+-+            innerServiceNewTx.requiresNewAction("Data from OuterNewTx", innerShouldFail);
+-+            // 当 requiresNewAction 执行完毕后，T2 会独立提交或回滚，然后 T1 恢复
+-+            log.info("[OuterServiceNewTx.Scenario3] InnerServiceNewTx 调用完毕，外部事务 T1 已恢复.");
+-+        } catch (RuntimeException e) {
+-+            // 这个 catch 块只会捕获到 InnerServiceNewTx 抛出的异常
+-+            // 但 T2 的回滚已经在其内部处理了
+-+            log.error("[OuterServiceNewTx.Scenario3] 捕获到来自 InnerServiceNewTx 的异常: {}", e.getMessage());
+-+            // 注意：即使捕获了内部异常，如果希望外部事务T1也因此失败，需要重新抛出
+-+            // throw e; // 如果希望外部也失败，取消此行注释
+-+        }
+-+
+-+        // T1 恢复后继续执行
+-+        if (outerShouldFailAfter) {
+-+            log.warn("[OuterServiceNewTx.Scenario3] 外部事务 T1 即将抛出异常!");
+-+            throw new RuntimeException("OuterServiceNewTx 在内部调用后失败了!"); // 这将导致 T1 回滚
+-+        }
+-+
+-+        logRepository.save(new LogEntry("OuterNewTx Log after calling inner"));
+-+        log.info("[OuterServiceNewTx.Scenario3] 外部日志 (after) 已保存 (事务 T1).");
+-+        log.info("[OuterServiceNewTx.Scenario3] 执行完毕 (外部 REQUIRED).");
+-+        // 如果 T1 正常结束，它会在这里提交
+-+    }
+-+
+-+
+-+    // === 场景 4: 外部无事务, 内部 REQUIRES_NEW ===
+-+    // 这个方法 *没有* @Transactional 注解
+-+    public void callInnerRequiresNew_OuterNonTransactional(boolean innerShouldFail) {
+-+        log.info("[OuterServiceNewTx.Scenario4] 开始执行 (外部无事务)...");
+-+        try {
+-+            // 调用 InnerServiceNewTx 的 requiresNewAction 方法
+-+            // 因为当前没有外部事务，innerServiceNewTx 会简单地创建一个新事务 T2
+-+            innerServiceNewTx.requiresNewAction("Data from Non-Transactional OuterNewTx", innerShouldFail);
+-+            // 如果 innerServiceNewTx 成功，T2 在其执行完毕后提交
+-+        } catch (RuntimeException e) {
+-+            // 如果 innerServiceNewTx 失败，T2 会回滚
+-+            log.error("[OuterServiceNewTx.Scenario4] 捕获到来自 InnerServiceNewTx 的异常: {}", e.getMessage());
+-+        }
+-+        log.info("[OuterServiceNewTx.Scenario4] 执行完毕 (外部无事务).");
+-+    }
+-+}
+-\ No newline at end of file
+-diff --git a/src/main/java/com/example/transactionaldemo/service/OuterServiceSupports.java b/src/main/java/com/example/transactionaldemo/service/OuterServiceSupports.java
+-index e69de29..3a519a6 100644
+---- a/src/main/java/com/example/transactionaldemo/service/OuterServiceSupports.java
+-+++ b/src/main/java/com/example/transactionaldemo/service/OuterServiceSupports.java
+-@@ -0,0 +1,58 @@
+-+package com.example.transactionaldemo.service;
+-+
+-+import com.example.transactionaldemo.entity.LogEntry;
+-+import com.example.transactionaldemo.repository.LogRepository;
+-+import com.example.transactionaldemo.service.InnerServiceSupports; // 注入 Supports Service
+-+import lombok.RequiredArgsConstructor;
+-+import lombok.extern.slf4j.Slf4j;
+-+import org.springframework.stereotype.Service;
+-+import org.springframework.transaction.annotation.Transactional;
+-+
+-+@Service
+-+@Slf4j
+-+@RequiredArgsConstructor
+-+public class OuterServiceSupports {
+-+
+-+    private final LogRepository logRepository;
+-+    private final InnerServiceSupports innerServiceSupports; // 注入 Supports Service
+-+
+-+    // === 场景 5: 外部 REQUIRED, 内部 SUPPORTS ===
+-+    @Transactional // 默认 REQUIRED, 启动事务 T1
+-+    public void callInnerSupports_OuterRequired(boolean innerShouldFail) {
+-+        log.info("[OuterServiceSupports.Scenario5] 开始执行 (外部 REQUIRED)...");
+-+        logRepository.save(new LogEntry("OuterSupports Log before calling inner"));
+-+        log.info("[OuterServiceSupports.Scenario5] 外部日志 (before) 已保存 (事务 T1).");
+-+
+-+        try {
+-+            // 调用 InnerServiceSupports 的 supportsAction 方法
+-+            // 因为当前方法有事务 T1，InnerServiceSupports 的方法会加入这个事务 T1
+-+            innerServiceSupports.supportsAction("Data from OuterSupports", innerShouldFail);
+-+        } catch (RuntimeException e) {
+-+            log.error("[OuterServiceSupports.Scenario5] 捕获到来自 InnerServiceSupports 的异常: {}", e.getMessage());
+-+            // 因为 inner 加入了 T1，它的失败会导致 T1 回滚，所以这里需要重新抛出异常
+-+            throw e;
+-+        }
+-+
+-+        // 这段代码只有在 innerServiceSupports.supportsAction 没有抛异常时才会执行
+-+        logRepository.save(new LogEntry("OuterSupports Log after calling inner"));
+-+        log.info("[OuterServiceSupports.Scenario5] 外部日志 (after) 已保存 (事务 T1).");
+-+        log.info("[OuterServiceSupports.Scenario5] 执行完毕 (外部 REQUIRED).");
+-+        // 如果 T1 正常结束，它会在这里提交
+-+    }
+-+
+-+    // === 场景 6: 外部无事务, 内部 SUPPORTS ===
+-+    // 这个方法 *没有* @Transactional 注解
+-+    public void callInnerSupports_OuterNonTransactional(boolean innerShouldFail) {
+-+        log.info("[OuterServiceSupports.Scenario6] 开始执行 (外部无事务)...");
+-+        try {
+-+            // 调用 InnerServiceSupports 的 supportsAction 方法
+-+            // 因为当前方法没有事务，InnerServiceSupports 的方法会以非事务方式执行
+-+            innerServiceSupports.supportsAction("Data from Non-Transactional OuterSupports", innerShouldFail);
+-+        } catch (RuntimeException e) {
+-+            // 这个 catch 只会捕获异常，因为没有事务，所以没有事务回滚发生
+-+            log.error("[OuterServiceSupports.Scenario6] 捕获到来自 InnerServiceSupports 的异常: {}", e.getMessage());
+-+            log.warn("[OuterServiceSupports.Scenario6] 注意：如果内部方法在抛异常前保存了数据，该数据可能已提交且无法回滚！");
+-+        }
+-+        log.info("[OuterServiceSupports.Scenario6] 执行完毕 (外部无事务).");
+-+    }
+-+}
+-\ No newline at end of file
+diff --git a/src/main/java/com/example/transactionaldemo/controller/DemoNestedController.java b/src/main/java/com/example/transactionaldemo/controller/DemoNestedController.java
+index e69de29..f2756b4 100644
+--- a/src/main/java/com/example/transactionaldemo/controller/DemoNestedController.java
++++ b/src/main/java/com/example/transactionaldemo/controller/DemoNestedController.java
+@@ -0,0 +1,40 @@
 +package com.example.transactionaldemo.controller;
 +
-+import com.example.transactionaldemo.service.OuterServiceNewTx;
++import com.example.transactionaldemo.service.OuterServiceNested;
 +import lombok.RequiredArgsConstructor;
 +import org.springframework.web.bind.annotation.GetMapping;
 +import org.springframework.web.bind.annotation.RequestMapping;
 +import org.springframework.web.bind.annotation.RestController;
 +
 +@RestController
-+@RequestMapping("/newtx") // 给这个 Controller 加个前缀区分
++@RequestMapping("/nested") // New prefix /nested
 +@RequiredArgsConstructor
-+public class DemoNewTxController {
++public class DemoNestedController {
 +
-+    private final OuterServiceNewTx outerServiceNewTx;
++    private final OuterServiceNested outerServiceNested;
 +
-+    // --- 场景 3: 外部 REQUIRED, 内部 REQUIRES_NEW ---
-+
-+    @GetMapping("/scenario3/inner_success_outer_success")
-+    public String runScenario3_InnerSuccess_OuterSuccess() {
++    // --- Scenario 13: Inner NESTED Fails, Outer REQUIRED Succeeds ---
++    @GetMapping("/scenario13/inner_fail_outer_success")
++    public String runScenario13_InnerFailOuterSuccess() {
 +        try {
-+            outerServiceNewTx.callInnerRequiresNew_OuterRequired(false, false);
-+            return "场景3 (内成功, 外成功): T1 和 T2 都独立提交。预期数据库有 Outer(before), Inner, Outer(after) 日志。";
++            outerServiceNested.scenarioInnerFailOuterSuccess();
++            // Outer service caught the inner exception and continued
++            return "Scenario 13 (Inner Fail, Outer Success): Inner rolled back to savepoint, Outer committed. Check DB & Logs. Expected DB: Outer Log 1, Outer Log 2.";
 +        } catch (Exception e) {
-+            return "场景3 (内成功, 外成功) 发生意外错误: " + e.getMessage();
++            // This shouldn't happen if OuterService catches correctly
++            return "Scenario 13 occurred an unexpected error: " + e.getMessage();
 +        }
 +    }
 +
-+    @GetMapping("/scenario3/inner_fail_outer_success")
-+    public String runScenario3_InnerFail_OuterSuccess() {
-+         // 注意：在 OuterServiceNewTx 中，我们没有重新抛出内部异常
-+         // 所以外部事务 T1 不会因此失败
++    // --- Scenario 14: Inner NESTED Succeeds, Outer REQUIRED Fails ---
++    @GetMapping("/scenario14/inner_success_outer_fail")
++    public String runScenario14_InnerSuccessOuterFail() {
 +        try {
-+             outerServiceNewTx.callInnerRequiresNew_OuterRequired(true, false);
-+             return "场景3 (内失败, 外成功): T2 回滚, T1 提交。预期数据库只有 Outer(before) 和 Outer(after) 日志。";
-+        } catch (Exception e) {
-+             // 如果 OuterServiceNewTx 修改为重新抛出内部异常，则会进入这里
-+             return "场景3 (内失败, 外成功) 发生意外错误（可能外部事务也回滚了）: " + e.getMessage();
-+        }
-+    }
-+
-+    @GetMapping("/scenario3/inner_success_outer_fail")
-+    public String runScenario3_InnerSuccess_OuterFail() {
-+        try {
-+            outerServiceNewTx.callInnerRequiresNew_OuterRequired(false, true);
-+             // 因为外部 T1 失败并抛异常，会进入下面的 catch
-+            return "场景3 (内成功, 外失败) 执行完成，但似乎外部未回滚？";
++            outerServiceNested.scenarioInnerSuccessOuterFail();
++            // This shouldn't be reached as OuterService throws an exception
++            return "Scenario 14 executed but outer didn't seem to fail?";
 +        } catch (RuntimeException e) {
-+            return "场景3 (内成功, 外失败): T2 已提交, T1 回滚。预期数据库只有 Inner 日志。异常: " + e.getMessage();
++            return "Scenario 14 (Inner Success, Outer Fail): Inner succeeded, but Outer failed later, causing full T1 rollback. Expected DB: No new records. Exception: " + e.getMessage();
 +        }
-+    }
-+
-+    // --- 场景 4: 外部无事务, 内部 REQUIRES_NEW ---
-+
-+    @GetMapping("/scenario4/inner_success")
-+    public String runScenario4_InnerSuccess() {
-+        outerServiceNewTx.callInnerRequiresNew_OuterNonTransactional(false);
-+        return "场景4 (内成功): T2 提交。预期数据库只有 Inner 日志。";
-+    }
-+
-+    @GetMapping("/scenario4/inner_fail")
-+    public String runScenario4_InnerFail() {
-+        outerServiceNewTx.callInnerRequiresNew_OuterNonTransactional(true);
-+        return "场景4 (内失败): T2 回滚。预期数据库无新增日志。";
 +    }
 +}
 \ No newline at end of file
-diff --git a/src/main/java/com/example/transactionaldemo/service/DemoSupportsController.java b/src/main/java/com/example/transactionaldemo/service/DemoSupportsController.java
-index e69de29..b9f551c 100644
---- a/src/main/java/com/example/transactionaldemo/service/DemoSupportsController.java
-+++ b/src/main/java/com/example/transactionaldemo/service/DemoSupportsController.java
-@@ -0,0 +1,51 @@
+diff --git a/src/main/java/com/example/transactionaldemo/controller/DemoNeverController.java b/src/main/java/com/example/transactionaldemo/controller/DemoNeverController.java
+index e69de29..67e1a63 100644
+--- a/src/main/java/com/example/transactionaldemo/controller/DemoNeverController.java
++++ b/src/main/java/com/example/transactionaldemo/controller/DemoNeverController.java
+@@ -0,0 +1,35 @@
++package com.example.transactionaldemo.controller;
++
++import com.example.transactionaldemo.service.OuterServiceNever;
++import lombok.RequiredArgsConstructor;
++import org.springframework.web.bind.annotation.GetMapping;
++import org.springframework.web.bind.annotation.RequestMapping;
++import org.springframework.web.bind.annotation.RestController;
++
++@RestController
++@RequestMapping("/never") // 新的前缀 /never
++@RequiredArgsConstructor
++public class DemoNeverController {
++
++    private final OuterServiceNever outerServiceNever;
++
++    // --- 场景 11: 外部 REQUIRED, 内部 NEVER ---
++    @GetMapping("/scenario11/fail")
++    public String runScenario11_Fail() {
++        try {
++             outerServiceNever.callInnerNever_OuterRequired();
++             // 因为 Outer Service 捕获了异常，所以请求能正常返回
++             return "场景11: Outer(REQUIRED) 调用 Inner(NEVER)，成功捕获 IllegalTransactionStateException。外部事务 T1 继续并提交。预期 DB 有 Outer(before), Outer(after)。请检查应用日志确认异常信息。";
++        } catch (Exception e) {
++             // 如果 OuterService 重抛了异常，会进入这里
++             return "场景11 发生意外错误（可能是外部事务最终回滚了）: " + e.getMessage();
++        }
++    }
++
++    // --- 场景 12: 外部无事务, 内部 NEVER ---
++    @GetMapping("/scenario12/success")
++    public String runScenario12_Success() {
++        outerServiceNever.callInnerNever_OuterNonTransactional();
++        return "场景12: Outer(Non-Tx) 调用 Inner(NEVER)，Inner 成功以非事务方式执行。预期 DB 有 Inner 日志。";
++    }
++}
+\ No newline at end of file
+diff --git a/src/main/java/com/example/transactionaldemo/controller/DemoNotSupportedController.java b/src/main/java/com/example/transactionaldemo/controller/DemoNotSupportedController.java
+index e69de29..c2c67c0 100644
+--- a/src/main/java/com/example/transactionaldemo/controller/DemoNotSupportedController.java
++++ b/src/main/java/com/example/transactionaldemo/controller/DemoNotSupportedController.java
+@@ -0,0 +1,58 @@
++package com.example.transactionaldemo.controller;
++
++import com.example.transactionaldemo.service.OuterServiceNotSupported;
++import lombok.RequiredArgsConstructor;
++import org.springframework.web.bind.annotation.GetMapping;
++import org.springframework.web.bind.annotation.RequestMapping;
++import org.springframework.web.bind.annotation.RestController;
++
++@RestController
++@RequestMapping("/notsupported") // 新的前缀 /notsupported
++@RequiredArgsConstructor
++public class DemoNotSupportedController {
++
++    private final OuterServiceNotSupported outerServiceNotSupported;
++
++    // --- 场景 9: 外部 REQUIRED, 内部 NOT_SUPPORTED ---
++
++    @GetMapping("/scenario9/inner_success_outer_success")
++    public String runScenario9_InnerSuccess_OuterSuccess() {
++        try {
++            outerServiceNotSupported.callInnerNotSupported_OuterRequired(false, false);
++            return "场景9 (内成功, 外成功): T1 提交, Inner 非事务性执行成功。预期 DB 有 Outer(before), Inner, Outer(after)。";
++        } catch (Exception e) {
++            return "场景9 (内成功, 外成功) 发生意外错误: " + e.getMessage();
++        }
++    }
++
++    @GetMapping("/scenario9/inner_fail_outer_success")
++    public String runScenario9_InnerFail_OuterSuccess() {
++        // OuterService 捕获了内部异常并未重抛 (在 outerShouldFailAfter = false 时)
++        outerServiceNotSupported.callInnerNotSupported_OuterRequired(true, false);
++        return "场景9 (内失败, 外成功): T1 提交 (因异常被捕获), Inner 非事务性执行失败。预期 DB 有 Outer(before), Outer(after), 和失败前保存的 Inner 日志！";
++    }
++
++    @GetMapping("/scenario9/inner_success_outer_fail")
++    public String runScenario9_InnerSuccess_OuterFail() {
++        try {
++            outerServiceNotSupported.callInnerNotSupported_OuterRequired(false, true);
++            return "场景9 (内成功, 外失败) 执行完成，但似乎外部未回滚？"; // 不会到这里
++        } catch (RuntimeException e) {
++            return "场景9 (内成功, 外失败): T1 回滚, Inner 非事务性执行成功。预期 DB **只有** Inner 日志！异常: " + e.getMessage();
++        }
++    }
++
++    // --- 场景 10: 外部无事务, 内部 NOT_SUPPORTED ---
++
++    @GetMapping("/scenario10/inner_success")
++    public String runScenario10_InnerSuccess() {
++        outerServiceNotSupported.callInnerNotSupported_OuterNonTransactional(false);
++        return "场景10 (内成功): Inner 非事务性执行。预期 DB 只有 Inner 日志。";
++    }
++
++    @GetMapping("/scenario10/inner_fail")
++    public String runScenario10_InnerFail() {
++        outerServiceNotSupported.callInnerNotSupported_OuterNonTransactional(true);
++        return "场景10 (内失败): Inner 非事务性执行，失败前保存的日志无法回滚！预期 DB **仍然有** Inner 日志！";
++    }
++}
+\ No newline at end of file
+diff --git a/src/main/java/com/example/transactionaldemo/service/InnerServiceNested.java b/src/main/java/com/example/transactionaldemo/service/InnerServiceNested.java
+index e69de29..10d9f02 100644
+--- a/src/main/java/com/example/transactionaldemo/service/InnerServiceNested.java
++++ b/src/main/java/com/example/transactionaldemo/service/InnerServiceNested.java
+@@ -0,0 +1,39 @@
 +package com.example.transactionaldemo.service;
 +
-+import com.example.transactionaldemo.service.OuterServiceSupports;
++import com.example.transactionaldemo.entity.LogEntry;
++import com.example.transactionaldemo.repository.LogRepository;
 +import lombok.RequiredArgsConstructor;
-+import org.springframework.web.bind.annotation.GetMapping;
-+import org.springframework.web.bind.annotation.RequestMapping;
-+import org.springframework.web.bind.annotation.RestController;
++import lombok.extern.slf4j.Slf4j;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.annotation.Propagation;
++import org.springframework.transaction.annotation.Transactional;
++import org.springframework.transaction.support.TransactionSynchronizationManager;
 +
-+@RestController
-+@RequestMapping("/supports") // 新的前缀 /supports
++@Service
++@Slf4j
 +@RequiredArgsConstructor
-+public class DemoSupportsController {
++public class InnerServiceNested {
 +
-+    private final OuterServiceSupports outerServiceSupports;
++    private final LogRepository logRepository;
 +
-+    // --- 场景 5: 外部 REQUIRED, 内部 SUPPORTS ---
++    // Specify Propagation.NESTED
++    @Transactional(propagation = Propagation.NESTED)
++    public void nestedAction(String message, boolean shouldFail) {
++        // This will execute within a nested transaction (using a savepoint)
++        // if called from an existing transaction. Otherwise, like REQUIRED.
++        boolean actualTransactionActive = TransactionSynchronizationManager.isActualTransactionActive();
++        String currentTransactionName = TransactionSynchronizationManager.getCurrentTransactionName();
++        log.info("  [InnerServiceNested.nestedAction] Started (NESTED). Active Tx? {}, Tx Name: {}", actualTransactionActive, currentTransactionName);
 +
-+    @GetMapping("/scenario5/inner_success")
-+    public String runScenario5_InnerSuccess() {
-+        try {
-+            outerServiceSupports.callInnerSupports_OuterRequired(false);
-+            return "场景5 (内成功): Inner 加入 Outer 的事务 T1，T1 提交。预期 DB 有 Outer(before), Inner, Outer(after)。";
-+        } catch (Exception e) {
-+            return "场景5 (内成功) 发生意外错误: " + e.getMessage();
++        logRepository.save(new LogEntry("InnerNested Log: " + message));
++        log.info("  [InnerServiceNested.nestedAction] Inner log saved within nested scope.");
++
++        if (shouldFail) {
++            log.warn("  [InnerServiceNested.nestedAction] Simulating failure within nested transaction!");
++            throw new RuntimeException("InnerServiceNested failed!");
++            // This exception will cause a rollback *to the savepoint* created for this nested transaction.
 +        }
-+    }
-+
-+    @GetMapping("/scenario5/inner_fail")
-+    public String runScenario5_InnerFail() {
-+        try {
-+            outerServiceSupports.callInnerSupports_OuterRequired(true);
-+            return "场景5 (内失败) 执行完成，但似乎未回滚？"; // 正常不会到这里
-+        } catch (RuntimeException e) {
-+            return "场景5 (内失败): Inner 加入 T1 并失败，导致 T1 回滚。预期 DB 无新增记录。异常: " + e.getMessage();
-+        }
-+    }
-+
-+    // --- 场景 6: 外部无事务, 内部 SUPPORTS ---
-+
-+    @GetMapping("/scenario6/inner_success")
-+    public String runScenario6_InnerSuccess() {
-+        outerServiceSupports.callInnerSupports_OuterNonTransactional(false);
-+        return "场景6 (内成功): Inner 以非事务方式执行，日志可能已自动提交。预期 DB 只有 Inner 日志。";
-+    }
-+
-+    @GetMapping("/scenario6/inner_fail")
-+    public String runScenario6_InnerFail() {
-+        outerServiceSupports.callInnerSupports_OuterNonTransactional(true);
-+        return "场景6 (内失败): Inner 以非事务方式执行，在失败前回滚了日志，但因无事务，该日志 *无法* 被回滚！预期 DB 仍然 *有* Inner 日志。";
++        log.info("  [InnerServiceNested.nestedAction] Completed successfully (nested scope).");
++        // If successful, changes are part of the outer transaction, pending its commit.
 +    }
 +}
 \ No newline at end of file
-diff --git a/src/main/java/com/example/transactionaldemo/service/InnerServiceNewTx.java b/src/main/java/com/example/transactionaldemo/service/InnerServiceNewTx.java
-index e69de29..179c0e3 100644
---- a/src/main/java/com/example/transactionaldemo/service/InnerServiceNewTx.java
-+++ b/src/main/java/com/example/transactionaldemo/service/InnerServiceNewTx.java
+diff --git a/src/main/java/com/example/transactionaldemo/service/InnerServiceNever.java b/src/main/java/com/example/transactionaldemo/service/InnerServiceNever.java
+index e69de29..32fcc0d 100644
+--- a/src/main/java/com/example/transactionaldemo/service/InnerServiceNever.java
++++ b/src/main/java/com/example/transactionaldemo/service/InnerServiceNever.java
 @@ -0,0 +1,32 @@
 +package com.example.transactionaldemo.service;
 +
@@ -140,79 +561,35 @@ index e69de29..179c0e3 100644
 +import org.springframework.stereotype.Service;
 +import org.springframework.transaction.annotation.Propagation;
 +import org.springframework.transaction.annotation.Transactional;
++import org.springframework.transaction.support.TransactionSynchronizationManager;
 +
 +@Service
 +@Slf4j
 +@RequiredArgsConstructor
-+public class InnerServiceNewTx {
++public class InnerServiceNever {
 +
 +    private final LogRepository logRepository;
 +
-+    // 明确指定 Propagation.REQUIRES_NEW
-+    @Transactional(propagation = Propagation.REQUIRES_NEW)
-+    public void requiresNewAction(String message, boolean shouldFail) {
-+        log.info("  [InnerServiceNewTx.requiresNewAction] 开始执行 ( REQUIRES_NEW )...");
-+        logRepository.save(new LogEntry("InnerNewTx Log: " + message));
-+        log.info("  [InnerServiceNewTx.requiresNewAction] 内部日志已保存 (新事务).");
-+
-+        if (shouldFail) {
-+            log.warn("  [InnerServiceNewTx.requiresNewAction] 即将抛出运行时异常 (新事务)!");
-+            throw new RuntimeException("InnerServiceNewTx 失败了!"); // 这将导致这个新事务 T2 回滚
-+        }
-+        log.info("  [InnerServiceNewTx.requiresNewAction] 执行完毕 (新事务).");
-+        // 如果正常结束，这个新事务 T2 会在这里提交
-+    }
-+}
-\ No newline at end of file
-diff --git a/src/main/java/com/example/transactionaldemo/service/InnerServiceSupports.java b/src/main/java/com/example/transactionaldemo/service/InnerServiceSupports.java
-index e69de29..33df09d 100644
---- a/src/main/java/com/example/transactionaldemo/service/InnerServiceSupports.java
-+++ b/src/main/java/com/example/transactionaldemo/service/InnerServiceSupports.java
-@@ -0,0 +1,38 @@
-+package com.example.transactionaldemo.service;
-+
-+import com.example.transactionaldemo.entity.LogEntry;
-+import com.example.transactionaldemo.repository.LogRepository;
-+import lombok.RequiredArgsConstructor;
-+import lombok.extern.slf4j.Slf4j;
-+import org.springframework.stereotype.Service;
-+import org.springframework.transaction.annotation.Propagation;
-+import org.springframework.transaction.annotation.Transactional;
-+import org.springframework.transaction.support.TransactionSynchronizationManager; // 用于检查当前是否存在事务
-+
-+@Service
-+@Slf4j
-+@RequiredArgsConstructor
-+public class InnerServiceSupports {
-+
-+    private final LogRepository logRepository;
-+
-+    // 明确指定 Propagation.SUPPORTS
-+    @Transactional(propagation = Propagation.SUPPORTS)
-+    public void supportsAction(String message, boolean shouldFail) {
-+        // 检查当前是否存在活动的事务
++    // 明确指定 Propagation.NEVER
++    @Transactional(propagation = Propagation.NEVER)
++    public void neverAction(String message) {
++        // 这段代码只有在调用者 *没有* 提供事务时才会执行
++        // 如果有事务，在方法入口处就会抛出 IllegalTransactionStateException
 +        boolean actualTransactionActive = TransactionSynchronizationManager.isActualTransactionActive();
-+        log.info("  [InnerServiceSupports.supportsAction] 开始执行 ( SUPPORTS ). 当前是否存在事务? {}", actualTransactionActive);
++        log.info("  [InnerServiceNever.neverAction] 开始执行 ( NEVER ). 当前是否存在事务? {}", actualTransactionActive); // 这里必定是 false
 +
-+        logRepository.save(new LogEntry("InnerSupports Log: " + message));
-+        log.info("  [InnerServiceSupports.supportsAction] 内部日志已保存.");
++        logRepository.save(new LogEntry("InnerNever Log: " + message));
++        log.info("  [InnerServiceNever.neverAction] 内部日志已保存 (非事务性).");
 +
-+        if (shouldFail) {
-+            log.warn("  [InnerServiceSupports.supportsAction] 即将抛出运行时异常!");
-+            throw new RuntimeException("InnerServiceSupports 失败了!");
-+            // 如果当前有事务 (actualTransactionActive=true)，这个异常会导致该事务回滚
-+            // 如果当前没有事务 (actualTransactionActive=false)，这个异常不会导致任何事务回滚（因为没有事务）
-+            // 但已经保存的 "InnerSupports Log" 在非事务模式下可能已提交，无法回滚！
-+        }
-+        log.info("  [InnerServiceSupports.supportsAction] 执行完毕.");
++        log.info("  [InnerServiceNever.neverAction] 执行完毕.");
 +    }
 +}
 \ No newline at end of file
-diff --git a/src/main/java/com/example/transactionaldemo/service/OuterServiceNewTx.java b/src/main/java/com/example/transactionaldemo/service/OuterServiceNewTx.java
-index e69de29..2320798 100644
---- a/src/main/java/com/example/transactionaldemo/service/OuterServiceNewTx.java
-+++ b/src/main/java/com/example/transactionaldemo/service/OuterServiceNewTx.java
-@@ -0,0 +1,68 @@
+diff --git a/src/main/java/com/example/transactionaldemo/service/InnerServiceNotSupported.java b/src/main/java/com/example/transactionaldemo/service/InnerServiceNotSupported.java
+index e69de29..6d8f994 100644
+--- a/src/main/java/com/example/transactionaldemo/service/InnerServiceNotSupported.java
++++ b/src/main/java/com/example/transactionaldemo/service/InnerServiceNotSupported.java
+@@ -0,0 +1,36 @@
 +package com.example.transactionaldemo.service;
 +
 +import com.example.transactionaldemo.entity.LogEntry;
@@ -222,127 +599,260 @@ index e69de29..2320798 100644
 +import org.springframework.stereotype.Service;
 +import org.springframework.transaction.annotation.Propagation;
 +import org.springframework.transaction.annotation.Transactional;
++import org.springframework.transaction.support.TransactionSynchronizationManager;
 +
 +@Service
 +@Slf4j
 +@RequiredArgsConstructor
-+public class OuterServiceNewTx {
++public class InnerServiceNotSupported {
 +
 +    private final LogRepository logRepository;
-+    private final InnerServiceNewTx innerServiceNewTx; // 注入新的 Inner Service
 +
-+    // === 场景 3: 外部 REQUIRED, 内部 REQUIRES_NEW ===
-+    @Transactional // 默认 REQUIRED, 启动事务 T1
-+    public void callInnerRequiresNew_OuterRequired(boolean innerShouldFail, boolean outerShouldFailAfter) {
-+        log.info("[OuterServiceNewTx.Scenario3] 开始执行 (外部 REQUIRED)...");
-+        logRepository.save(new LogEntry("OuterNewTx Log before calling inner"));
-+        log.info("[OuterServiceNewTx.Scenario3] 外部日志 (before) 已保存 (事务 T1).");
++    // 明确指定 Propagation.NOT_SUPPORTED
++    @Transactional(propagation = Propagation.NOT_SUPPORTED)
++    public void notSupportedAction(String message, boolean shouldFail) {
++        // 检查当前是否存在活动的事务 (预期这里应该总是 false，因为外部事务会被挂起)
++        boolean actualTransactionActive = TransactionSynchronizationManager.isActualTransactionActive();
++        log.info("  [InnerServiceNotSupported.notSupportedAction] 开始执行 ( NOT_SUPPORTED ). 当前是否存在事务? {}", actualTransactionActive);
++
++        logRepository.save(new LogEntry("InnerNotSupported Log: " + message));
++        log.info("  [InnerServiceNotSupported.notSupportedAction] 内部日志已保存 (非事务性).");
++
++        if (shouldFail) {
++            log.warn("  [InnerServiceNotSupported.notSupportedAction] 即将抛出运行时异常 (非事务性)!");
++            throw new RuntimeException("InnerServiceNotSupported 失败了!");
++            // 因为是非事务性执行，即使这里抛异常，前面保存的日志也无法自动回滚！
++        }
++        log.info("  [InnerServiceNotSupported.notSupportedAction] 执行完毕 (非事务性).");
++    }
++}
+\ No newline at end of file
+diff --git a/src/main/java/com/example/transactionaldemo/service/OuterServiceNested.java b/src/main/java/com/example/transactionaldemo/service/OuterServiceNested.java
+index e69de29..e9fe066 100644
+--- a/src/main/java/com/example/transactionaldemo/service/OuterServiceNested.java
++++ b/src/main/java/com/example/transactionaldemo/service/OuterServiceNested.java
+@@ -0,0 +1,73 @@
++package com.example.transactionaldemo.service;
++
++import com.example.transactionaldemo.entity.LogEntry;
++import com.example.transactionaldemo.repository.LogRepository;
++import lombok.RequiredArgsConstructor;
++import lombok.extern.slf4j.Slf4j;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.annotation.Transactional;
++import org.springframework.transaction.support.TransactionSynchronizationManager;
++
++
++@Service
++@Slf4j
++@RequiredArgsConstructor
++public class OuterServiceNested {
++
++    private final LogRepository logRepository;
++    private final InnerServiceNested innerServiceNested; // Inject Nested Service
++
++    // === Scenario 13: Inner NESTED Fails, Outer REQUIRED Succeeds (Partial Rollback) ===
++    @Transactional // Default REQUIRED, starts T1
++    public void scenarioInnerFailOuterSuccess() {
++        String outerTxName = TransactionSynchronizationManager.getCurrentTransactionName();
++        log.info("[OuterServiceNested.Scenario13] Started (Outer REQUIRED). Tx Name: {}", outerTxName);
++        logRepository.save(new LogEntry("OuterNested Log 1 (Scenario 13 - Before Inner)"));
++        log.info("[OuterServiceNested.Scenario13] Outer log 1 saved (T1).");
 +
 +        try {
-+            // 调用 InnerServiceNewTx 的 requiresNewAction 方法
-+            // 当前事务 T1 会被挂起，innerServiceNewTx 会启动一个全新的独立事务 T2
-+            innerServiceNewTx.requiresNewAction("Data from OuterNewTx", innerShouldFail);
-+            // 当 requiresNewAction 执行完毕后，T2 会独立提交或回滚，然后 T1 恢复
-+            log.info("[OuterServiceNewTx.Scenario3] InnerServiceNewTx 调用完毕，外部事务 T1 已恢复.");
++            // Call the NESTED method, instructing it to fail
++            // A savepoint will be created within T1 before this call
++            innerServiceNested.nestedAction("Data for Scenario 13", true);
 +        } catch (RuntimeException e) {
-+            // 这个 catch 块只会捕获到 InnerServiceNewTx 抛出的异常
-+            // 但 T2 的回滚已经在其内部处理了
-+            log.error("[OuterServiceNewTx.Scenario3] 捕获到来自 InnerServiceNewTx 的异常: {}", e.getMessage());
-+            // 注意：即使捕获了内部异常，如果希望外部事务T1也因此失败，需要重新抛出
-+            // throw e; // 如果希望外部也失败，取消此行注释
++            // Catch the exception from the nested method
++            log.error("[OuterServiceNested.Scenario13] Caught exception from InnerServiceNested: {}. Outer transaction T1 continues.", e.getMessage());
++            // !! Crucially, we CATCH the exception and DO NOT re-throw it.
++            // The rollback only happened back to the savepoint. T1 continues.
++        }
++
++        // T1 continues execution after the savepoint rollback
++        logRepository.save(new LogEntry("OuterNested Log 2 (Scenario 13 - After Inner Failed)"));
++        log.info("[OuterServiceNested.Scenario13] Outer log 2 saved (T1).");
++        log.info("[OuterServiceNested.Scenario13] Completing successfully (Outer REQUIRED).");
++        // T1 commits here. Work before the savepoint and after the (rolled-back) nested call persists.
++    }
++
++
++    // === Scenario 14: Inner NESTED Succeeds, Outer REQUIRED Fails (Full Rollback) ===
++    @Transactional // Default REQUIRED, starts T1
++    public void scenarioInnerSuccessOuterFail() {
++        String outerTxName = TransactionSynchronizationManager.getCurrentTransactionName();
++        log.info("[OuterServiceNested.Scenario14] Started (Outer REQUIRED). Tx Name: {}", outerTxName);
++        logRepository.save(new LogEntry("OuterNested Log 1 (Scenario 14 - Before Inner)"));
++        log.info("[OuterServiceNested.Scenario14] Outer log 1 saved (T1).");
++
++        try {
++            // Call the NESTED method, instructing it to succeed
++            // A savepoint is created, inner method runs, savepoint might be released.
++            // Inner's changes are now part of T1.
++            innerServiceNested.nestedAction("Data for Scenario 14", false);
++            log.info("[OuterServiceNested.Scenario14] InnerServiceNested completed successfully.");
++        } catch (RuntimeException e) {
++            // This shouldn't happen in this scenario
++            log.error("[OuterServiceNested.Scenario14] Unexpected exception from InnerServiceNested: {}", e.getMessage());
++            throw e; // Re-throw unexpected errors
++        }
++
++        // Outer transaction T1 continues, but now encounters an error
++        log.warn("[OuterServiceNested.Scenario14] Simulating failure in outer transaction AFTER inner completed!");
++        throw new RuntimeException("OuterServiceNested failed AFTER inner completed!");
++        // This exception causes the *entire* transaction T1 to roll back,
++        // including work done by the nested method.
++    }
++}
+\ No newline at end of file
+diff --git a/src/main/java/com/example/transactionaldemo/service/OuterServiceNever.java b/src/main/java/com/example/transactionaldemo/service/OuterServiceNever.java
+index e69de29..2b1ec75 100644
+--- a/src/main/java/com/example/transactionaldemo/service/OuterServiceNever.java
++++ b/src/main/java/com/example/transactionaldemo/service/OuterServiceNever.java
+@@ -0,0 +1,66 @@
++package com.example.transactionaldemo.service;
++
++import com.example.transactionaldemo.entity.LogEntry;
++import com.example.transactionaldemo.repository.LogRepository;
++import lombok.RequiredArgsConstructor;
++import lombok.extern.slf4j.Slf4j;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.IllegalTransactionStateException; // 需要捕获的异常
++import org.springframework.transaction.annotation.Transactional;
++
++@Service
++@Slf4j
++@RequiredArgsConstructor
++public class OuterServiceNever {
++
++    private final LogRepository logRepository;
++    private final InnerServiceNever innerServiceNever; // 注入 Never Service
++
++    // === 场景 11: 外部 REQUIRED, 内部 NEVER ===
++    @Transactional // 默认 REQUIRED, 启动事务 T1
++    public void callInnerNever_OuterRequired() {
++        log.info("[OuterServiceNever.Scenario11] 开始执行 (外部 REQUIRED)...");
++        logRepository.save(new LogEntry("OuterNever Log before calling inner"));
++        log.info("[OuterServiceNever.Scenario11] 外部日志 (before) 已保存 (事务 T1).");
++
++        try {
++            // 调用 InnerServiceNever 的 neverAction 方法
++            // !! 关键：因为当前方法有事务 T1，InnerServiceNever (NEVER) 会立即抛出 IllegalTransactionStateException
++            log.info("[OuterServiceNever.Scenario11] 即将调用 InnerServiceNever...");
++            innerServiceNever.neverAction("Data from OuterNever (REQUIRED)");
++            // 如果能执行到这里，说明 NEVER 的行为不符合预期
++             log.warn("[OuterServiceNever.Scenario11] InnerServiceNever 调用似乎成功了？(预期应该抛异常)");
++        } catch (IllegalTransactionStateException e) {
++            // 捕获预期的异常
++            log.error("[OuterServiceNever.Scenario11] 成功捕获到预期的异常 (因为外部有事务): {}", e.getMessage());
++            // 这里我们捕获了异常，可以选择让外部事务 T1 继续或失败
++            // 为了演示，我们让 T1 继续并提交 (不重抛异常)
++             log.info("[OuterServiceNever.Scenario11] 即使内部调用失败，外部事务 T1 仍将尝试提交...");
++        } catch (RuntimeException e) {
++            // 捕获其他可能的运行时异常
++             log.error("[OuterServiceNever.Scenario11] 捕获到意外的运行时异常: {}", e.getMessage());
++             throw e; // 其他异常通常应该重抛以回滚 T1
++        }
++
++        logRepository.save(new LogEntry("OuterNever Log after calling inner"));
++        log.info("[OuterServiceNever.Scenario11] 外部日志 (after) 已保存 (事务 T1).");
++        log.info("[OuterServiceNever.Scenario11] 执行完毕 (外部 REQUIRED).");
++        // T1 尝试提交 (如果 IllegalTransactionStateException 被捕获且未重抛)
++    }
++
++    // === 场景 12: 外部无事务, 内部 NEVER ===
++    // 这个方法 *没有* @Transactional 注解
++    public void callInnerNever_OuterNonTransactional() {
++        log.info("[OuterServiceNever.Scenario12] 开始执行 (外部无事务)...");
++        try {
++            // 调用 InnerServiceNever 的 neverAction 方法
++            // 因为当前方法没有事务，InnerServiceNever (NEVER) 会正常以非事务方式执行
++            innerServiceNever.neverAction("Data from Non-Transactional OuterNever");
++            log.info("[OuterServiceNever.Scenario12] InnerServiceNever 调用成功 (非事务性).");
++        } catch (RuntimeException e) {
++            // 如果 innerServiceNever 内部发生其他异常，会在这里捕获
++            log.error("[OuterServiceNever.Scenario12] 捕获到来自 InnerServiceNever 的异常: {}", e.getMessage());
++        }
++        log.info("[OuterServiceNever.Scenario12] 执行完毕 (外部无事务).");
++    }
++}
+\ No newline at end of file
+diff --git a/src/main/java/com/example/transactionaldemo/service/OuterServiceNotSupported.java b/src/main/java/com/example/transactionaldemo/service/OuterServiceNotSupported.java
+index e69de29..1263679 100644
+--- a/src/main/java/com/example/transactionaldemo/service/OuterServiceNotSupported.java
++++ b/src/main/java/com/example/transactionaldemo/service/OuterServiceNotSupported.java
+@@ -0,0 +1,72 @@
++package com.example.transactionaldemo.service;
++
++import com.example.transactionaldemo.entity.LogEntry;
++import com.example.transactionaldemo.repository.LogRepository;
++import lombok.RequiredArgsConstructor;
++import lombok.extern.slf4j.Slf4j;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.annotation.Transactional;
++
++@Service
++@Slf4j
++@RequiredArgsConstructor
++public class OuterServiceNotSupported {
++
++    private final LogRepository logRepository;
++    private final InnerServiceNotSupported innerServiceNotSupported; // 注入 NotSupported Service
++
++    // === 场景 9: 外部 REQUIRED, 内部 NOT_SUPPORTED ===
++    @Transactional // 默认 REQUIRED, 启动事务 T1
++    public void callInnerNotSupported_OuterRequired(boolean innerShouldFail, boolean outerShouldFailAfter) {
++        log.info("[OuterServiceNotSupported.Scenario9] 开始执行 (外部 REQUIRED)...");
++        logRepository.save(new LogEntry("OuterNotSupported Log before calling inner"));
++        log.info("[OuterServiceNotSupported.Scenario9] 外部日志 (before) 已保存 (事务 T1).");
++
++        String innerResult = "[Inner Call Result Unknown]";
++        try {
++            // 调用 InnerServiceNotSupported 的 notSupportedAction 方法
++            // 当前事务 T1 会被挂起，innerServiceNotSupported 会以非事务方式执行
++            innerServiceNotSupported.notSupportedAction("Data from OuterNotSupported", innerShouldFail);
++            // 内部方法执行的 save 操作很可能已经提交了
++            innerResult = "[Inner Call Succeeded]";
++            log.info("[OuterServiceNotSupported.Scenario9] InnerServiceNotSupported 调用完毕，外部事务 T1 已恢复.");
++        } catch (RuntimeException e) {
++            innerResult = "[Inner Call Failed with Exception]";
++            // 捕获内部抛出的异常，但 T1 仍然恢复
++            log.error("[OuterServiceNotSupported.Scenario9] 捕获到来自 InnerServiceNotSupported 的异常: {}", e.getMessage());
++            // 我们可以选择在这里让 T1 继续（不重抛），或者让 T1 也失败（重抛）
++             if (!outerShouldFailAfter) { // 只有在外部不打算失败时，才可能考虑不重抛，但通常重抛更安全
++                 log.warn("[OuterServiceNotSupported.Scenario9] 内部调用失败，但外部事务 T1 将继续尝试提交...");
++             } else {
++                 throw e; // 如果外部也要失败，或者为了保险，重新抛出
++             }
 +        }
 +
 +        // T1 恢复后继续执行
++        log.info("[OuterServiceNotSupported.Scenario9] Inner call result: {}", innerResult);
 +        if (outerShouldFailAfter) {
-+            log.warn("[OuterServiceNewTx.Scenario3] 外部事务 T1 即将抛出异常!");
-+            throw new RuntimeException("OuterServiceNewTx 在内部调用后失败了!"); // 这将导致 T1 回滚
++            log.warn("[OuterServiceNotSupported.Scenario9] 外部事务 T1 即将抛出异常!");
++            throw new RuntimeException("OuterServiceNotSupported 在内部调用后失败了!"); // 这将导致 T1 回滚
 +        }
 +
-+        logRepository.save(new LogEntry("OuterNewTx Log after calling inner"));
-+        log.info("[OuterServiceNewTx.Scenario3] 外部日志 (after) 已保存 (事务 T1).");
-+        log.info("[OuterServiceNewTx.Scenario3] 执行完毕 (外部 REQUIRED).");
++        logRepository.save(new LogEntry("OuterNotSupported Log after calling inner"));
++        log.info("[OuterServiceNotSupported.Scenario9] 外部日志 (after) 已保存 (事务 T1).");
++        log.info("[OuterServiceNotSupported.Scenario9] 执行完毕 (外部 REQUIRED).");
 +        // 如果 T1 正常结束，它会在这里提交
 +    }
 +
-+
-+    // === 场景 4: 外部无事务, 内部 REQUIRES_NEW ===
++    // === 场景 10: 外部无事务, 内部 NOT_SUPPORTED ===
 +    // 这个方法 *没有* @Transactional 注解
-+    public void callInnerRequiresNew_OuterNonTransactional(boolean innerShouldFail) {
-+        log.info("[OuterServiceNewTx.Scenario4] 开始执行 (外部无事务)...");
++    public void callInnerNotSupported_OuterNonTransactional(boolean innerShouldFail) {
++        log.info("[OuterServiceNotSupported.Scenario10] 开始执行 (外部无事务)...");
 +        try {
-+            // 调用 InnerServiceNewTx 的 requiresNewAction 方法
-+            // 因为当前没有外部事务，innerServiceNewTx 会简单地创建一个新事务 T2
-+            innerServiceNewTx.requiresNewAction("Data from Non-Transactional OuterNewTx", innerShouldFail);
-+            // 如果 innerServiceNewTx 成功，T2 在其执行完毕后提交
++            // 调用 InnerServiceNotSupported 的 notSupportedAction 方法
++            // 因为当前没有外部事务，innerServiceNotSupported 会直接以非事务方式执行
++            innerServiceNotSupported.notSupportedAction("Data from Non-Transactional OuterNotSupported", innerShouldFail);
 +        } catch (RuntimeException e) {
-+            // 如果 innerServiceNewTx 失败，T2 会回滚
-+            log.error("[OuterServiceNewTx.Scenario4] 捕获到来自 InnerServiceNewTx 的异常: {}", e.getMessage());
++            log.error("[OuterServiceNotSupported.Scenario10] 捕获到来自 InnerServiceNotSupported 的异常: {}", e.getMessage());
++             log.warn("[OuterServiceNotSupported.Scenario10] 注意：如果内部方法在抛异常前保存了数据，该数据可能已提交且无法回滚！");
 +        }
-+        log.info("[OuterServiceNewTx.Scenario4] 执行完毕 (外部无事务).");
-+    }
-+}
-\ No newline at end of file
-diff --git a/src/main/java/com/example/transactionaldemo/service/OuterServiceSupports.java b/src/main/java/com/example/transactionaldemo/service/OuterServiceSupports.java
-index e69de29..3a519a6 100644
---- a/src/main/java/com/example/transactionaldemo/service/OuterServiceSupports.java
-+++ b/src/main/java/com/example/transactionaldemo/service/OuterServiceSupports.java
-@@ -0,0 +1,58 @@
-+package com.example.transactionaldemo.service;
-+
-+import com.example.transactionaldemo.entity.LogEntry;
-+import com.example.transactionaldemo.repository.LogRepository;
-+import com.example.transactionaldemo.service.InnerServiceSupports; // 注入 Supports Service
-+import lombok.RequiredArgsConstructor;
-+import lombok.extern.slf4j.Slf4j;
-+import org.springframework.stereotype.Service;
-+import org.springframework.transaction.annotation.Transactional;
-+
-+@Service
-+@Slf4j
-+@RequiredArgsConstructor
-+public class OuterServiceSupports {
-+
-+    private final LogRepository logRepository;
-+    private final InnerServiceSupports innerServiceSupports; // 注入 Supports Service
-+
-+    // === 场景 5: 外部 REQUIRED, 内部 SUPPORTS ===
-+    @Transactional // 默认 REQUIRED, 启动事务 T1
-+    public void callInnerSupports_OuterRequired(boolean innerShouldFail) {
-+        log.info("[OuterServiceSupports.Scenario5] 开始执行 (外部 REQUIRED)...");
-+        logRepository.save(new LogEntry("OuterSupports Log before calling inner"));
-+        log.info("[OuterServiceSupports.Scenario5] 外部日志 (before) 已保存 (事务 T1).");
-+
-+        try {
-+            // 调用 InnerServiceSupports 的 supportsAction 方法
-+            // 因为当前方法有事务 T1，InnerServiceSupports 的方法会加入这个事务 T1
-+            innerServiceSupports.supportsAction("Data from OuterSupports", innerShouldFail);
-+        } catch (RuntimeException e) {
-+            log.error("[OuterServiceSupports.Scenario5] 捕获到来自 InnerServiceSupports 的异常: {}", e.getMessage());
-+            // 因为 inner 加入了 T1，它的失败会导致 T1 回滚，所以这里需要重新抛出异常
-+            throw e;
-+        }
-+
-+        // 这段代码只有在 innerServiceSupports.supportsAction 没有抛异常时才会执行
-+        logRepository.save(new LogEntry("OuterSupports Log after calling inner"));
-+        log.info("[OuterServiceSupports.Scenario5] 外部日志 (after) 已保存 (事务 T1).");
-+        log.info("[OuterServiceSupports.Scenario5] 执行完毕 (外部 REQUIRED).");
-+        // 如果 T1 正常结束，它会在这里提交
-+    }
-+
-+    // === 场景 6: 外部无事务, 内部 SUPPORTS ===
-+    // 这个方法 *没有* @Transactional 注解
-+    public void callInnerSupports_OuterNonTransactional(boolean innerShouldFail) {
-+        log.info("[OuterServiceSupports.Scenario6] 开始执行 (外部无事务)...");
-+        try {
-+            // 调用 InnerServiceSupports 的 supportsAction 方法
-+            // 因为当前方法没有事务，InnerServiceSupports 的方法会以非事务方式执行
-+            innerServiceSupports.supportsAction("Data from Non-Transactional OuterSupports", innerShouldFail);
-+        } catch (RuntimeException e) {
-+            // 这个 catch 只会捕获异常，因为没有事务，所以没有事务回滚发生
-+            log.error("[OuterServiceSupports.Scenario6] 捕获到来自 InnerServiceSupports 的异常: {}", e.getMessage());
-+            log.warn("[OuterServiceSupports.Scenario6] 注意：如果内部方法在抛异常前保存了数据，该数据可能已提交且无法回滚！");
-+        }
-+        log.info("[OuterServiceSupports.Scenario6] 执行完毕 (外部无事务).");
++        log.info("[OuterServiceNotSupported.Scenario10] 执行完毕 (外部无事务).");
 +    }
 +}
 \ No newline at end of file
